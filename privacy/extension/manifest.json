@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "Aegis Native Privacy Rules",
+  "version": "0.1.0",
+  "description": "Locally evaluated bootstrap tracker blocking for Aegis development builds.",
+  "permissions": [
+    "declarativeNetRequest"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "declarative_net_request": {
+    "rule_resources": [
+      {
+        "id": "aegis_bootstrap",
+        "enabled": true,
+        "path": "rules.json"
+      }
+    ]
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "stevenblack-unified-hosts": {
+    "commit": "1e8362c0ec4e7a1dd57d54427949f962fde21a12",
+    "url": "https://raw.githubusercontent.com/StevenBlack/hosts/1e8362c0ec4e7a1dd57d54427949f962fde21a12/hosts",
+    "sha256": "39446f0f8b244f5b5830fefcbef8da489a9f606fdf1ceaef1131c68e6272b3cd",
+    "license": "MIT",
+    "retrieved": "2026-08-20"
+  }
+}

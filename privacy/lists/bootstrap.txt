@@ -1,0 +1,9 @@
+# Small reviewed bootstrap set; third-party requests only.
+analytics.twitter.com
+bat.bing.com
+connect.facebook.net
+doubleclick.net
+google-analytics.com
+googletagmanager.com
+scorecardresearch.com
+static.ads-twitter.com
