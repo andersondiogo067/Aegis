@@ -1,0 +1,9 @@
+/src/
+/depot_tools/
+/out/
+/build/work/
+/build/artifacts/
+*.pyc
+__pycache__/
+.pytest_cache/
+.venv/
