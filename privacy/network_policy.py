@@ -11,5 +11,7 @@ def chromium_network_flags(mode: BrowserMode, socks_port: int | None = None) -> 
     return [
         "--force-webrtc-ip-handling-policy=disable_non_proxied_udp",
         f"--proxy-server=socks5://127.0.0.1:{socks_port}",
+        "--proxy-bypass-list=<-loopback>",
+        "--disable-quic",
         "--host-resolver-rules=MAP * ~NOTFOUND , EXCLUDE 127.0.0.1",
     ]

@@ -1,5 +1,14 @@
 # Changes
 
+## 2026-08-20 — Phase 4
+
+- Added dedicated ephemeral Tor session processes with loopback-only SOCKS/control listeners and Tor-supported isolation flags.
+- Added authenticated control-port verification of bootstrap, circuit and exact SOCKS listener state.
+- Added fixed-proxy Anonymous launch, remote-DNS enforcement, loopback-bypass removal, QUIC disablement and WebRTC non-proxied UDP denial.
+- Added runtime Tor health monitoring, blocked-state behavior and ephemeral Tor/profile cleanup.
+- Installed Tor 0.4.9.6 and passed the opt-in live Tor route and fail-closed integration test.
+- Explicitly documented the remaining native egress-gate requirement instead of claiming complete anonymity.
+
 ## 2026-08-20 — Phase 3
 
 - Added conservative tracking-parameter stripping with raw-query preservation.

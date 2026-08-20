@@ -1,0 +1,49 @@
+#!/usr/bin/env python3
+import argparse
+import shutil
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+
+from privacy.launcher import build_chromium_command
+from privacy.policy import BrowserMode
+from privacy.profile import BrowserProfile
+from privacy.tor_process import TorSession
+
+parser = argparse.ArgumentParser(description="Launch an isolated Aegis Anonymous Chromium session")
+parser.add_argument("--chromium", type=Path, help="Chromium/Chrome executable")
+parser.add_argument("--state-root", type=Path, default=Path.home() / ".local/state/aegis")
+parser.add_argument("url", nargs="*")
+args = parser.parse_args()
+resolved = args.chromium or (Path(found) if (found := shutil.which("chromium")) else None)
+if resolved is None or not resolved.is_file():
+    raise SystemExit("error: Chromium executable not found; pass --chromium PATH")
+
+with TorSession(args.state_root / "tor") as tor:
+    assert tor.socks_port is not None and tor.verifier is not None
+    with BrowserProfile(BrowserMode.ANONYMOUS, args.state_root) as profile:
+        command = build_chromium_command(
+            resolved,
+            BrowserMode.ANONYMOUS,
+            profile,
+            args.url,
+            socks_port=tor.socks_port,
+        )
+        browser = subprocess.Popen(command)
+        print("Aegis Anonymous: Tor control, circuit, listener and SOCKS verified; direct fallback disabled")
+        while browser.poll() is None:
+            time.sleep(1)
+            if not tor.verifier.is_ready():
+                print("Aegis Anonymous BLOCKED: Tor health lost; terminating network context", file=sys.stderr)
+                browser.terminate()
+                try:
+                    browser.wait(timeout=10)
+                except subprocess.TimeoutExpired:
+                    browser.kill()
+                    browser.wait(timeout=5)
+                raise SystemExit(70)
+raise SystemExit(browser.returncode or 0)

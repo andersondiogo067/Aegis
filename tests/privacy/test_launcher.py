@@ -21,6 +21,31 @@ class LauncherTests(unittest.TestCase):
         self.assertNotIn("--no-sandbox", command)
         self.assertNotIn("--ignore-certificate-errors", command)
 
+    def test_anonymous_command_is_pinned_to_tor_without_direct_fallback(self):
+        command = build_chromium_command(
+            executable=Path("/usr/bin/chromium"),
+            mode=BrowserMode.ANONYMOUS,
+            profile=Path("/tmp/aegis/anonymous"),
+            urls=[],
+            socks_port=19050,
+        )
+
+        self.assertIn("--proxy-server=socks5://127.0.0.1:19050", command)
+        self.assertIn("--force-webrtc-ip-handling-policy=disable_non_proxied_udp", command)
+        self.assertIn("--proxy-bypass-list=<-loopback>", command)
+        self.assertIn("--disable-quic", command)
+
+    def test_forbidden_security_flags_are_rejected(self):
+        for unsafe in ("--no-sandbox", "--ignore-certificate-errors"):
+            with self.assertRaisesRegex(ValueError, "forbidden"):
+                build_chromium_command(
+                    executable=Path("/usr/bin/chromium"),
+                    mode=BrowserMode.STANDARD,
+                    profile=Path("/tmp/aegis/standard"),
+                    urls=[],
+                    extra_flags=[unsafe],
+                )
+
     def test_private_command_adds_incognito_defense_in_depth(self):
         command = build_chromium_command(
             executable=Path("/usr/bin/chromium"),

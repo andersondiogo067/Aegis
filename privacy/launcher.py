@@ -3,6 +3,7 @@
 from pathlib import Path
 from typing import Iterable
 
+from .network_policy import chromium_network_flags
 from .policy import BrowserMode
 
 FORBIDDEN_FLAGS = frozenset({"--no-sandbox", "--ignore-certificate-errors"})
@@ -14,6 +15,7 @@ def build_chromium_command(
     profile: Path,
     urls: Iterable[str],
     extra_flags: Iterable[str] = (),
+    socks_port: int | None = None,
 ) -> list[str]:
     flags = [str(flag) for flag in extra_flags]
     for flag in flags:
@@ -29,6 +31,7 @@ def build_chromium_command(
     ]
     if mode is not BrowserMode.STANDARD:
         command.append("--incognito")
+    command.extend(chromium_network_flags(mode, socks_port=socks_port))
     command.extend(flags)
     command.extend(str(url) for url in urls)
     return command
