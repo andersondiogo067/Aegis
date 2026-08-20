@@ -10,9 +10,10 @@ class FingerprintTests(unittest.TestCase):
         second = fingerprint_profile(BrowserMode.STANDARD)
 
         self.assertEqual(first, second)
-        self.assertEqual(first.canvas, "standardize")
-        self.assertEqual(first.webgl, "standardize")
-        self.assertEqual(first.audio_context, "standardize")
+        self.assertEqual(first.canvas, "pending-coherent-native-patch")
+        self.assertEqual(first.webgl, "pending-coherent-native-patch")
+        self.assertEqual(first.audio_context, "pending-coherent-native-patch")
+        self.assertEqual(first.screen_strategy, "letterbox-required")
         self.assertEqual(first.timezone, "UTC")
         self.assertEqual(first.hardware_concurrency, 4)
         self.assertEqual(first.device_memory_gib, 8)
@@ -20,7 +21,8 @@ class FingerprintTests(unittest.TestCase):
     def test_anonymous_uses_common_fixed_cohort_not_random_values(self):
         profile = fingerprint_profile(BrowserMode.ANONYMOUS)
 
-        self.assertEqual(profile.screen, (1920, 1080))
+        self.assertIsNone(profile.screen)
+        self.assertEqual(profile.screen_strategy, "letterbox-required")
         self.assertEqual(profile.device_pixel_ratio, 1.0)
         self.assertEqual(profile.platform, "Linux x86_64")
         self.assertEqual(profile.languages, ("en-US", "en"))

@@ -23,6 +23,14 @@ class PrivacyPolicyTests(unittest.TestCase):
         self.assertIs(managed["SearchSuggestEnabled"], False)
         self.assertEqual(managed["NetworkPredictionOptions"], 2)
         self.assertEqual(managed["HttpsOnlyMode"], "force_enabled")
+        self.assertIs(managed["HttpsUpgradesEnabled"], True)
+        self.assertIs(managed["BrowserNetworkTimeQueriesEnabled"], False)
+        self.assertIs(managed["DomainReliabilityAllowed"], False)
+        self.assertIs(managed["UrlKeyedAnonymizedDataCollectionEnabled"], False)
+        self.assertIs(managed["ComponentUpdatesEnabled"], True)
+        self.assertEqual(managed["ChromeVariations"], 1)
+        self.assertEqual(managed["DefaultGeolocationSetting"], 3)
+        self.assertEqual(managed["DefaultNotificationsSetting"], 2)
         self.assertNotIn("DisableSiteIsolation", managed)
 
     def test_private_policy_requests_data_cleanup_at_exit(self):
@@ -38,22 +46,29 @@ class PrivacyPolicyTests(unittest.TestCase):
         self.assertTrue(policy.separate_profile)
         self.assertTrue(policy.clear_on_exit)
 
-    def test_sensitive_permissions_default_to_ask(self):
+    def test_sensitive_permissions_use_audited_ask_or_block_defaults(self):
         policy = policy_for(BrowserMode.STANDARD)
 
         for permission in (
             "camera",
             "microphone",
             "geolocation",
-            "notifications",
             "clipboard",
-            "bluetooth",
-            "usb",
-            "serial",
-            "midi",
             "filesystem",
         ):
             self.assertEqual(policy.permissions[permission], "ask", permission)
+        for permission in (
+            "notifications",
+            "sensors",
+            "idle_detection",
+            "local_fonts",
+            "bluetooth",
+            "usb",
+            "serial",
+            "hid",
+            "midi",
+        ):
+            self.assertEqual(policy.permissions[permission], "block", permission)
 
 
 if __name__ == "__main__":

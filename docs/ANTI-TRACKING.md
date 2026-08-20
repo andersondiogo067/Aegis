@@ -12,9 +12,9 @@ Only explicit known click identifiers and the `utm_` namespace are removed, only
 
 ## Fingerprint cohort
 
-`fingerprint.py` is the single deterministic cohort definition. It standardizes Canvas/WebGL/Audio behavior, a common font cohort, 1920×1080 at DPR 1, four logical CPUs, 8 GiB exposed memory, Linux x86-64 platform, Chromium-major UA strategy, en-US/en and UTC. A page/site is deliberately not an input: there is no per-page randomization that would create a unique fingerprint.
+`fingerprint.py` is the single deterministic cohort specification. Its immediately safe MVP pins exposed CPU count and memory and aligns platform/locale/timezone/UA strategy. It deliberately marks Canvas, WebGL and Audio as pending a coherent renderer patch, and refuses to claim a fixed screen without real viewport letterboxing. A page/site is not an input: there is no per-page randomization that would create a unique fingerprint.
 
-These values are specifications consumed by downstream Blink/content patches; Python cannot by itself change renderer APIs. Until those patches compile and browser tests pass, UI must not claim full fingerprint protection.
+These values are specifications consumed by downstream Blink/content patches; Python cannot by itself change renderer APIs. JS values, headers, Client Hints and media queries must remain mutually consistent. Until those patches compile and cross-host browser tests pass, the dashboard reports fingerprint protection as **not verified**.
 
 ## WebRTC and DNS
 

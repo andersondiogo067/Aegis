@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width">
+<title>Aegis Fingerprint Diagnostics</title>
+<style>body{font:15px ui-monospace,monospace;background:#20242a;color:#e8edf2;max-width:900px;margin:2rem auto;padding:1rem}button{padding:.7rem}pre{white-space:pre-wrap;background:#2b3038;padding:1rem;border-left:4px solid #22b8a7}</style></head>
+<body><h1>Diagnóstico local de fingerprint</h1>
+<p>Esta página não envia dados. Salve o JSON e compare entre reinicializações, perfis e máquinas. O objetivo é reduzir unicidade e inconsistências.</p>
+<button id="run">Coletar diagnóstico</button> <button id="save" disabled>Salvar JSON</button><pre id="output">Ainda não coletado.</pre>
+<script>
+const output=document.querySelector('#output'); let latest=null;
+async function digest(text){const bytes=new TextEncoder().encode(text);const hash=await crypto.subtle.digest('SHA-256',bytes);return [...new Uint8Array(hash)].map(x=>x.toString(16).padStart(2,'0')).join('')}
+async function collect(){
+ const canvas=document.createElement('canvas');canvas.width=240;canvas.height=60;const c=canvas.getContext('2d');c.textBaseline='top';c.font='16px Arial';c.fillStyle='#f60';c.fillRect(2,2,120,30);c.fillStyle='#069';c.fillText('Aegis 🛡 privacy',4,5);
+ const glCanvas=document.createElement('canvas');const gl=glCanvas.getContext('webgl')||glCanvas.getContext('experimental-webgl');let webgl={available:false};
+ if(gl){const ext=gl.getExtension('WEBGL_debug_renderer_info');webgl={available:true,vendor:gl.getParameter(gl.VENDOR),renderer:gl.getParameter(gl.RENDERER),debugVendor:ext?gl.getParameter(ext.UNMASKED_VENDOR_WEBGL):null,debugRenderer:ext?gl.getParameter(ext.UNMASKED_RENDERER_WEBGL):null}}
+ let audioHash='unavailable';try{const Offline=window.OfflineAudioContext||window.webkitOfflineAudioContext;const ctx=new OfflineAudioContext(1,44100,44100);const osc=ctx.createOscillator();const comp=ctx.createDynamicsCompressor();osc.type='triangle';osc.frequency.value=1000;osc.connect(comp);comp.connect(ctx.destination);osc.start(0);const rendered=await ctx.startRendering();audioHash=await digest(Array.from(rendered.getChannelData(0).slice(4500,5000)).join(','))}catch(e){audioHash='error:'+e.name}
+ const fontNames=['Arial','Times New Roman','Courier New','Noto Sans','DejaVu Sans'];const fonts=Object.fromEntries(fontNames.map(name=>[name,document.fonts.check(`16px "${name}"`)]));
+ return {collectedAt:new Date().toISOString(),navigator:{userAgent:navigator.userAgent,userAgentData:navigator.userAgentData?await navigator.userAgentData.getHighEntropyValues(['architecture','bitness','model','platformVersion','uaFullVersion']):null,platform:navigator.platform,languages:navigator.languages,hardwareConcurrency:navigator.hardwareConcurrency,deviceMemory:navigator.deviceMemory},locale:{timezone:Intl.DateTimeFormat().resolvedOptions().timeZone,options:Intl.DateTimeFormat().resolvedOptions()},screen:{width:screen.width,height:screen.height,availWidth:screen.availWidth,availHeight:screen.availHeight,colorDepth:screen.colorDepth,pixelDepth:screen.pixelDepth,devicePixelRatio:window.devicePixelRatio},canvas:{sha256:await digest(canvas.toDataURL())},webgl,audio:{sha256:audioHash},fonts};
+}
+document.querySelector('#run').onclick=async()=>{output.textContent='Coletando…';latest=await collect();output.textContent=JSON.stringify(latest,null,2);document.querySelector('#save').disabled=false};
+document.querySelector('#save').onclick=()=>{const blob=new Blob([JSON.stringify(latest,null,2)+'\n'],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='aegis-fingerprint.json';a.click();URL.revokeObjectURL(a.href)};
+</script></body></html>

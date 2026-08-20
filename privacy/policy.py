@@ -39,8 +39,27 @@ def chromium_managed_policy(policy: PrivacyPolicy) -> dict[str, object]:
         "SearchSuggestEnabled": policy.search_suggestions,
         "NetworkPredictionOptions": 0 if policy.network_prediction else 2,
         "HttpsOnlyMode": "force_enabled" if policy.https_only else "allowed",
+        "HttpsUpgradesEnabled": policy.https_only,
         "BackgroundModeEnabled": False,
+        "BrowserNetworkTimeQueriesEnabled": False,
+        "DomainReliabilityAllowed": False,
         "MetricsReportingEnabled": False,
+        "UrlKeyedAnonymizedDataCollectionEnabled": False,
+        "ComponentUpdatesEnabled": True,
+        "ChromeVariations": 1,
+        "DefaultGeolocationSetting": 3,
+        "DefaultMediaStreamSetting": 3,
+        "DefaultClipboardSetting": 3,
+        "DefaultFileSystemReadGuardSetting": 3,
+        "DefaultFileSystemWriteGuardSetting": 3,
+        "DefaultNotificationsSetting": 2,
+        "DefaultSensorsSetting": 2,
+        "DefaultIdleDetectionSetting": 2,
+        "DefaultLocalFontsSetting": 2,
+        "DefaultSerialGuardSetting": 2,
+        "DefaultWebBluetoothGuardSetting": 2,
+        "DefaultWebHidGuardSetting": 2,
+        "DefaultWebUsbGuardSetting": 2,
     }
     if policy.clear_on_exit:
         managed["ClearBrowsingDataOnExitList"] = [
@@ -68,19 +87,20 @@ def policy_for(mode: BrowserMode) -> PrivacyPolicy:
         clear_on_exit=mode is not BrowserMode.STANDARD,
         permissions=MappingProxyType(
             {
-                name: "ask"
-                for name in (
-                    "camera",
-                    "microphone",
-                    "geolocation",
-                    "notifications",
-                    "clipboard",
-                    "bluetooth",
-                    "usb",
-                    "serial",
-                    "midi",
-                    "filesystem",
-                )
+                "camera": "ask",
+                "microphone": "ask",
+                "geolocation": "ask",
+                "clipboard": "ask",
+                "filesystem": "ask",
+                "notifications": "block",
+                "sensors": "block",
+                "idle_detection": "block",
+                "local_fonts": "block",
+                "bluetooth": "block",
+                "usb": "block",
+                "serial": "block",
+                "hid": "block",
+                "midi": "block",
             }
         ),
     )

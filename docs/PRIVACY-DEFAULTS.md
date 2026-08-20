@@ -4,7 +4,7 @@
 
 The generated Chromium managed policy enables third-party-cookie blocking and HTTPS-only mode; disables remote search suggestions, network prediction, background mode and non-essential metrics reporting; and does not disable Safe Browsing or software/component updates. PRIVATE additionally requests clearing history, downloads, cookies/site data and cache on exit.
 
-Sensitive capabilities (camera, microphone, geolocation, notifications, clipboard, Bluetooth, USB, serial, MIDI and filesystem) remain prompt-based: no silent grant. Native downstream integration must map the declarative `permissions` table to Chromium content-setting defaults and tests.
+Common sensitive capabilities (camera, microphone, geolocation, clipboard and filesystem access) remain prompt-based: no silent grant. Higher-fingerprinting or abuse-prone capabilities (notifications, sensors, idle detection, local-font enumeration, Bluetooth, USB, serial, HID and MIDI) default to blocked and require an explicit user-created exception. The generated M151 policy also disables browser network-time queries, Domain Reliability and URL-keyed anonymized collection, while explicitly preserving component updates and critical-fix Variations.
 
 ## Profile separation
 

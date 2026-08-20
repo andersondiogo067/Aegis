@@ -1,5 +1,14 @@
 # Changes
 
+## 2026-08-20 — Phase 5
+
+- Added unified STANDARD/PRIVATE/ANONYMOUS development launcher and evidence-driven Privacy Dashboard.
+- Added local fingerprint diagnostics covering navigator, locale/timezone, screen, Canvas, WebGL, Audio and fonts.
+- Added process-level external connection audit tooling and exercised it with a real HTTPS request.
+- Expanded verified M151 privacy/background-network/permission policies while preserving component updates and critical-fix Variations.
+- Corrected fingerprint scope: no fixed screen claim without letterboxing and no Canvas/Audio/WebGL claim before coherent native patches.
+- Added exact PASS/BLOCKED privacy test matrix, host test runner and x86-64 self-hosted build workflow.
+
 ## 2026-08-20 — Phase 4
 
 - Added dedicated ephemeral Tor session processes with loopback-only SOCKS/control listeners and Tor-supported isolation flags.

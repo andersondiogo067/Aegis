@@ -1,0 +1,82 @@
+#!/usr/bin/env python3
+"""Unified development launcher for STANDARD, PRIVATE and ANONYMOUS."""
+
+import argparse
+import shutil
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+
+from privacy.dashboard import ProtectionEvidence, render_dashboard
+from privacy.launcher import build_chromium_command
+from privacy.policy import BrowserMode
+from privacy.profile import BrowserProfile
+from privacy.tor_process import TorSession
+
+parser = argparse.ArgumentParser(description="Launch an Aegis browser development mode")
+parser.add_argument("--mode", choices=[mode.value for mode in BrowserMode], default="standard")
+parser.add_argument("--chromium", type=Path, help="Chromium/Chrome executable")
+parser.add_argument("--state-root", type=Path, default=Path.home() / ".local/state/aegis")
+parser.add_argument("--no-dashboard", action="store_true")
+parser.add_argument("url", nargs="*")
+args = parser.parse_args()
+mode = BrowserMode(args.mode)
+resolved = args.chromium or (Path(found) if (found := shutil.which("chromium")) else None)
+if resolved is None or not resolved.is_file():
+    raise SystemExit("error: Chromium executable not found; pass --chromium PATH")
+
+
+def run_browser(profile: Path, socks_port: int | None = None, tor_verified: bool = False, verifier=None) -> int:
+    evidence = ProtectionEvidence(
+        mode=mode,
+        trackers_blocked=None,
+        cookies_third_party_blocked=True,
+        fingerprint_verified=False,
+        https_only=True,
+        webrtc_protected=True,
+        tor_verified=tor_verified,
+    )
+    dashboard = profile / "aegis-dashboard.html"
+    dashboard.write_text(render_dashboard(evidence))
+    urls = ([] if args.no_dashboard else [dashboard.as_uri()]) + args.url
+    extra_flags = []
+    if mode is BrowserMode.STANDARD:
+        extension = ROOT / "privacy/extension"
+        extra_flags.extend([f"--disable-extensions-except={extension}", f"--load-extension={extension}"])
+    command = build_chromium_command(
+        resolved,
+        mode,
+        profile,
+        urls,
+        extra_flags=extra_flags,
+        socks_port=socks_port,
+    )
+    browser = subprocess.Popen(command)
+    while browser.poll() is None:
+        time.sleep(1)
+        if verifier is not None and not verifier.is_ready():
+            print("Aegis Anonymous BLOCKED: Tor health lost", file=sys.stderr)
+            browser.terminate()
+            try:
+                browser.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                browser.kill()
+                browser.wait(timeout=5)
+            return 70
+    return browser.returncode or 0
+
+
+with BrowserProfile(mode, args.state_root) as profile:
+    if mode is BrowserMode.ANONYMOUS:
+        with TorSession(args.state_root / "tor") as tor:
+            assert tor.socks_port is not None and tor.verifier is not None
+            print("Aegis ANONYMOUS: Tor verified; launcher-level protection active")
+            result = run_browser(profile, tor.socks_port, True, tor.verifier)
+    else:
+        print(f"Aegis {mode.value.upper()}: privacy defaults active")
+        result = run_browser(profile)
+raise SystemExit(result)

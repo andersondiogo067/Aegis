@@ -1,14 +1,33 @@
 {
   "BackgroundModeEnabled": false,
   "BlockThirdPartyCookies": true,
+  "BrowserNetworkTimeQueriesEnabled": false,
+  "ChromeVariations": 1,
   "ClearBrowsingDataOnExitList": [
     "browsing_history",
     "download_history",
     "cookies_and_other_site_data",
     "cached_images_and_files"
   ],
+  "ComponentUpdatesEnabled": true,
+  "DefaultClipboardSetting": 3,
+  "DefaultFileSystemReadGuardSetting": 3,
+  "DefaultFileSystemWriteGuardSetting": 3,
+  "DefaultGeolocationSetting": 3,
+  "DefaultIdleDetectionSetting": 2,
+  "DefaultLocalFontsSetting": 2,
+  "DefaultMediaStreamSetting": 3,
+  "DefaultNotificationsSetting": 2,
+  "DefaultSensorsSetting": 2,
+  "DefaultSerialGuardSetting": 2,
+  "DefaultWebBluetoothGuardSetting": 2,
+  "DefaultWebHidGuardSetting": 2,
+  "DefaultWebUsbGuardSetting": 2,
+  "DomainReliabilityAllowed": false,
   "HttpsOnlyMode": "force_enabled",
+  "HttpsUpgradesEnabled": true,
   "MetricsReportingEnabled": false,
   "NetworkPredictionOptions": 2,
-  "SearchSuggestEnabled": false
+  "SearchSuggestEnabled": false,
+  "UrlKeyedAnonymizedDataCollectionEnabled": false
 }

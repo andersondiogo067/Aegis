@@ -11,7 +11,8 @@ class FingerprintProfile:
     webgl: str
     audio_context: str
     font_cohort: str
-    screen: tuple[int, int]
+    screen: tuple[int, int] | None
+    screen_strategy: str
     device_pixel_ratio: float
     hardware_concurrency: int
     device_memory_gib: int
@@ -23,11 +24,12 @@ class FingerprintProfile:
 
 
 _COMMON_COHORT = FingerprintProfile(
-    canvas="standardize",
-    webgl="standardize",
-    audio_context="standardize",
+    canvas="pending-coherent-native-patch",
+    webgl="pending-coherent-native-patch",
+    audio_context="pending-coherent-native-patch",
     font_cohort="aegis-common-v1",
-    screen=(1920, 1080),
+    screen=None,
+    screen_strategy="letterbox-required",
     device_pixel_ratio=1.0,
     hardware_concurrency=4,
     device_memory_gib=8,
