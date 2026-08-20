@@ -1,0 +1,14 @@
+{
+  "BackgroundModeEnabled": false,
+  "BlockThirdPartyCookies": true,
+  "ClearBrowsingDataOnExitList": [
+    "browsing_history",
+    "download_history",
+    "cookies_and_other_site_data",
+    "cached_images_and_files"
+  ],
+  "HttpsOnlyMode": "force_enabled",
+  "MetricsReportingEnabled": false,
+  "NetworkPredictionOptions": 2,
+  "SearchSuggestEnabled": false
+}

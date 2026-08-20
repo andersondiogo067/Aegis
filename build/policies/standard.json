@@ -1,0 +1,8 @@
+{
+  "BackgroundModeEnabled": false,
+  "BlockThirdPartyCookies": true,
+  "HttpsOnlyMode": "force_enabled",
+  "MetricsReportingEnabled": false,
+  "NetworkPredictionOptions": 2,
+  "SearchSuggestEnabled": false
+}
