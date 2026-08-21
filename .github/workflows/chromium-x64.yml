@@ -11,7 +11,7 @@ jobs:
         run: |
           test "$(uname -m)" = x86_64
           test "$(df --output=avail -k . | tail -1)" -ge 209715200
-      - run: scripts/bootstrap_source.sh
-      - run: scripts/apply_patches.sh
-      - run: scripts/build_linux_x64.sh
-      - run: scripts/test_all.sh
+      - name: Prepare and build pinned Chromium
+        run: scripts/setup-x64-builder.sh --build
+      - name: Run Aegis host-capable suite
+        run: scripts/test_all.sh
