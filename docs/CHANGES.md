@@ -6,7 +6,8 @@
 - Added the first real `git am` patch for user-overridable background-mode and network-prediction defaults.
 - Verified the patch with `git apply --check` and isolated `git am --3way` against clean exact M151 files; compilation remains blocked.
 - Added a conservative native tracking-URL utility with C++ unit tests, using exact M151 `GURL` APIs; throttle/browser integration remains blocked.
-- Produced isolated tracking/fingerprint candidate and Anonymous egress pseudodiff drafts for review without modifying unrelated native surfaces.
+- Added the foundational Anonymous egress gate state machine with strict endpoint/generation tests; NetworkContext/socket enforcement is not yet implemented.
+- Produced isolated broader fingerprint and Anonymous egress pseudodiff drafts for review without modifying unrelated native surfaces.
 - Excluded ignored `build/work` research artifacts from the security flag scanner while retaining scans of build configuration, scripts and privacy code.
 
 ## 2026-08-20 — Phase 5

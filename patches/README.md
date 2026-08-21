@@ -13,6 +13,11 @@ The current host cannot build a supported x86-64 Chromium tree. `patches/series`
    - preserves unknown query pieces, ordering, duplicates, fragments and raw values;
    - uses the exact M151 `GURL::query()` API and passed isolated `git am --3way`;
    - does not integrate a navigation throttle; native compilation/tests remain blocked.
+3. `0003-anonymous-egress-gate.patch`
+   - adds a default-deny generation state machine and six C++ unit tests;
+   - accepts only canonical IPv4/IPv6 loopback SOCKS endpoints and exact TCP address lists;
+   - stale generations fail and revocation is terminal for the installed generation;
+   - foundational policy only: no NetworkContext/socket integration or native fail-closed claim yet.
 
 ## Planned order
 

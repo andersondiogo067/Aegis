@@ -17,6 +17,7 @@ class PatchStackTests(unittest.TestCase):
             [
                 "0001-privacy-defaults-background-prediction.patch",
                 "0002-tracking-url-utils.patch",
+                "0003-anonymous-egress-gate.patch",
             ],
         )
         for entry in entries:

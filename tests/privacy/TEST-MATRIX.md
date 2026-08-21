@@ -11,6 +11,7 @@
 | Canvas/WebGL/Audio/fonts/screen/navigator/timezone | Diagnostic page + cohort specification: PASS | Cross-host renderer cohort: BLOCKED |
 | WebRTC | Restrictive command policy: PASS | ICE/STUN packet capture: BLOCKED |
 | DNS/proxy | SOCKS remote-hostname live route: PASS | Zero direct DNS/DoH packet capture: BLOCKED |
+| Anonymous gate state machine | exact-file `git am --3way`: PASS; 6 C++ tests authored | Compile/test execution + socket integration: BLOCKED |
 | Tor | Control+SOCKS unit and official IsTor live check: PASS | Native browser egress gate: BLOCKED |
 | Tor fail-closed | Gate unit + stop-Tor live health test: PASS | Mid-navigation browser kill/packet capture: BLOCKED |
 | Native tracking URL utility | exact-file `git am --3way`: PASS; C++ tests authored | Compile/unit execution: BLOCKED |

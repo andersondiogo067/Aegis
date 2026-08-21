@@ -1,0 +1,243 @@
+From 6adf6c6dac94ffca53af10cc0bf43ec734cf5e74 Mon Sep 17 00:00:00 2001
+From: Aegis Browser <aegis@localhost>
+Date: Thu, 20 Aug 2026 22:30:00 +0000
+Subject: [PATCH] anonymous: add default-deny egress gate state machine
+
+Foundational policy only: not yet wired to NetworkContext or socket creation.
+Authored against Chromium 151.0.7922.173 with C++ tests; native build and
+test execution remain blocked on this host.
+---
+ services/network/BUILD.gn                     |  3 +
+ services/network/anonymous_egress_gate.cc     | 56 ++++++++++++++
+ services/network/anonymous_egress_gate.h      | 52 +++++++++++++
+ .../network/anonymous_egress_gate_unittest.cc | 78 +++++++++++++++++++
+ 4 files changed, 189 insertions(+)
+ create mode 100644 services/network/anonymous_egress_gate.cc
+ create mode 100644 services/network/anonymous_egress_gate.h
+ create mode 100644 services/network/anonymous_egress_gate_unittest.cc
+
+diff --git a/services/network/BUILD.gn b/services/network/BUILD.gn
+index 66c8791..26c55bd 100644
+--- a/services/network/BUILD.gn
++++ b/services/network/BUILD.gn
+@@ -12,6 +12,8 @@ import("//testing/libfuzzer/fuzzer_test.gni")
+ component("network_service") {
+   sources = [
+     "accept_ch_frame_interceptor.cc",
++    "anonymous_egress_gate.cc",
++    "anonymous_egress_gate.h",
+     "accept_ch_frame_interceptor.h",
+     "chunked_data_pipe_upload_data_stream.cc",
+     "chunked_data_pipe_upload_data_stream.h",
+@@ -469,6 +471,7 @@ source_set("tests") {
+ 
+   sources = [
+     "accept_ch_frame_interceptor_unittest.cc",
++    "anonymous_egress_gate_unittest.cc",
+     "chunked_data_pipe_upload_data_stream_unittest.cc",
+     "connection_change_observer_unittest.cc",
+     "cookie_access_delegate_impl_unittest.cc",
+diff --git a/services/network/anonymous_egress_gate.cc b/services/network/anonymous_egress_gate.cc
+new file mode 100644
+index 0000000..fb8f83f
+--- /dev/null
++++ b/services/network/anonymous_egress_gate.cc
+@@ -0,0 +1,56 @@
++// Copyright 2026 The Aegis Authors
++// Use of this source code is governed by a BSD-style license.
++
++#include "services/network/anonymous_egress_gate.h"
++
++#include <memory>
++
++namespace network {
++
++// static
++std::unique_ptr<AnonymousEgressGate> AnonymousEgressGate::Create(
++    const net::IPEndPoint& tor_socks_endpoint,
++    uint64_t generation) {
++  const net::IPAddress& address = tor_socks_endpoint.address();
++  if (generation == 0 || tor_socks_endpoint.port() == 0 ||
++      !address.IsValid() || !address.IsLoopback() ||
++      address.IsIPv4MappedIPv6() || tor_socks_endpoint.scope_id().has_value()) {
++    return nullptr;
++  }
++  return std::unique_ptr<AnonymousEgressGate>(
++      new AnonymousEgressGate(tor_socks_endpoint, generation));
++}
++
++AnonymousEgressGate::AnonymousEgressGate(
++    const net::IPEndPoint& tor_socks_endpoint,
++    uint64_t generation)
++    : tor_socks_endpoint_(tor_socks_endpoint), generation_(generation) {}
++
++AnonymousEgressGate::~AnonymousEgressGate() = default;
++
++bool AnonymousEgressGate::OpenVerifiedGeneration(uint64_t generation) {
++  if (generation != generation_ || state_ != State::kBlocked)
++    return false;
++  state_ = State::kReady;
++  return true;
++}
++
++bool AnonymousEgressGate::RevokeGeneration(uint64_t generation) {
++  if (generation != generation_ || state_ == State::kRevoked)
++    return false;
++  state_ = State::kRevoked;
++  return true;
++}
++
++bool AnonymousEgressGate::AllowsTcp(
++    const net::AddressList& addresses) const {
++  if (state_ != State::kReady || addresses.empty())
++    return false;
++  for (const net::IPEndPoint& endpoint : addresses) {
++    if (endpoint != tor_socks_endpoint_)
++      return false;
++  }
++  return true;
++}
++
++}  // namespace network
+diff --git a/services/network/anonymous_egress_gate.h b/services/network/anonymous_egress_gate.h
+new file mode 100644
+index 0000000..cd170d6
+--- /dev/null
++++ b/services/network/anonymous_egress_gate.h
+@@ -0,0 +1,52 @@
++// Copyright 2026 The Aegis Authors
++// Use of this source code is governed by a BSD-style license.
++
++#ifndef SERVICES_NETWORK_ANONYMOUS_EGRESS_GATE_H_
++#define SERVICES_NETWORK_ANONYMOUS_EGRESS_GATE_H_
++
++#include <cstdint>
++#include <memory>
++
++#include "base/component_export.h"
++#include "net/base/address_list.h"
++#include "net/base/ip_endpoint.h"
++
++namespace network {
++
++// Pure default-deny state machine for a future Anonymous NetworkContext. This
++// class does not itself intercept sockets; callers must consult it at every
++// network entry point and revoke active work when the state changes.
++class COMPONENT_EXPORT(NETWORK_SERVICE) AnonymousEgressGate {
++ public:
++  enum class State { kBlocked, kReady, kRevoked };
++
++  static std::unique_ptr<AnonymousEgressGate> Create(
++      const net::IPEndPoint& tor_socks_endpoint,
++      uint64_t generation);
++
++  AnonymousEgressGate(const AnonymousEgressGate&) = delete;
++  AnonymousEgressGate& operator=(const AnonymousEgressGate&) = delete;
++  ~AnonymousEgressGate();
++
++  bool OpenVerifiedGeneration(uint64_t generation);
++  bool RevokeGeneration(uint64_t generation);
++  bool AllowsTcp(const net::AddressList& addresses) const;
++
++  State state() const { return state_; }
++  uint64_t generation() const { return generation_; }
++  const net::IPEndPoint& tor_socks_endpoint() const {
++    return tor_socks_endpoint_;
++  }
++
++ private:
++  AnonymousEgressGate(const net::IPEndPoint& tor_socks_endpoint,
++                      uint64_t generation);
++
++  const net::IPEndPoint tor_socks_endpoint_;
++  const uint64_t generation_;
++  State state_ = State::kBlocked;
++};
++
++}  // namespace network
++
++#endif  // SERVICES_NETWORK_ANONYMOUS_EGRESS_GATE_H_
+diff --git a/services/network/anonymous_egress_gate_unittest.cc b/services/network/anonymous_egress_gate_unittest.cc
+new file mode 100644
+index 0000000..305fb24
+--- /dev/null
++++ b/services/network/anonymous_egress_gate_unittest.cc
+@@ -0,0 +1,78 @@
++// Copyright 2026 The Aegis Authors
++// Use of this source code is governed by a BSD-style license.
++
++#include "services/network/anonymous_egress_gate.h"
++
++#include <memory>
++#include <string_view>
++#include <vector>
++
++#include "net/base/address_list.h"
++#include "net/base/ip_address.h"
++#include "net/base/ip_endpoint.h"
++#include "testing/gtest/include/gtest/gtest.h"
++
++namespace network {
++namespace {
++
++net::IPEndPoint Endpoint(std::string_view address, uint16_t port) {
++  return net::IPEndPoint(*net::IPAddress::FromIPLiteral(address), port);
++}
++
++TEST(AnonymousEgressGateTest, RejectsInvalidEndpointsAndGeneration) {
++  EXPECT_FALSE(AnonymousEgressGate::Create(Endpoint("127.0.0.1", 9050), 0));
++  EXPECT_FALSE(AnonymousEgressGate::Create(Endpoint("127.0.0.1", 0), 1));
++  EXPECT_FALSE(AnonymousEgressGate::Create(Endpoint("192.0.2.1", 9050), 1));
++  EXPECT_FALSE(
++      AnonymousEgressGate::Create(Endpoint("::ffff:127.0.0.1", 9050), 1));
++}
++
++TEST(AnonymousEgressGateTest, AcceptsCanonicalIpv4AndIpv6Loopback) {
++  EXPECT_TRUE(AnonymousEgressGate::Create(Endpoint("127.0.0.1", 9050), 1));
++  EXPECT_TRUE(AnonymousEgressGate::Create(Endpoint("::1", 9050), 1));
++}
++
++TEST(AnonymousEgressGateTest, StartsBlockedAndRejectsStaleGeneration) {
++  auto gate = AnonymousEgressGate::Create(Endpoint("127.0.0.1", 9050), 7);
++  ASSERT_TRUE(gate);
++  EXPECT_EQ(AnonymousEgressGate::State::kBlocked, gate->state());
++  EXPECT_FALSE(gate->OpenVerifiedGeneration(6));
++  EXPECT_FALSE(gate->AllowsTcp(
++      net::AddressList(Endpoint("127.0.0.1", 9050))));
++}
++
++TEST(AnonymousEgressGateTest, AllowsOnlyTheExactEndpointWhenReady) {
++  auto gate = AnonymousEgressGate::Create(Endpoint("127.0.0.1", 9050), 7);
++  ASSERT_TRUE(gate);
++  ASSERT_TRUE(gate->OpenVerifiedGeneration(7));
++  EXPECT_FALSE(gate->OpenVerifiedGeneration(7));
++  EXPECT_TRUE(gate->AllowsTcp(
++      net::AddressList(Endpoint("127.0.0.1", 9050))));
++  EXPECT_FALSE(gate->AllowsTcp(net::AddressList()));
++  EXPECT_FALSE(gate->AllowsTcp(net::AddressList(Endpoint("127.0.0.1", 9051))));
++  EXPECT_FALSE(gate->AllowsTcp(net::AddressList(std::vector<net::IPEndPoint>{
++      Endpoint("127.0.0.1", 9050), Endpoint("127.0.0.1", 9051)})));
++}
++
++TEST(AnonymousEgressGateTest, RevocationIsTerminalForTheGeneration) {
++  auto gate = AnonymousEgressGate::Create(Endpoint("127.0.0.1", 9050), 7);
++  ASSERT_TRUE(gate);
++  ASSERT_TRUE(gate->OpenVerifiedGeneration(7));
++  EXPECT_FALSE(gate->RevokeGeneration(6));
++  EXPECT_TRUE(gate->RevokeGeneration(7));
++  EXPECT_EQ(AnonymousEgressGate::State::kRevoked, gate->state());
++  EXPECT_FALSE(gate->OpenVerifiedGeneration(7));
++  EXPECT_FALSE(gate->RevokeGeneration(7));
++  EXPECT_FALSE(gate->AllowsTcp(
++      net::AddressList(Endpoint("127.0.0.1", 9050))));
++}
++
++TEST(AnonymousEgressGateTest, CanRevokeBeforeReadiness) {
++  auto gate = AnonymousEgressGate::Create(Endpoint("::1", 9050), 9);
++  ASSERT_TRUE(gate);
++  EXPECT_TRUE(gate->RevokeGeneration(9));
++  EXPECT_FALSE(gate->OpenVerifiedGeneration(9));
++}
++
++}  // namespace
++}  // namespace network
