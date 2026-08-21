@@ -1,2 +1,3 @@
 # Ordered Chromium downstream patches; one path per line.
-# Populated phase-by-phase. Patches must apply with git am --3way.
+# Patches apply with git am --3way in scripts/apply_patches.sh.
+0001-privacy-defaults-background-prediction.patch

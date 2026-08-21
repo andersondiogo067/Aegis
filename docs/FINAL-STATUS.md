@@ -28,7 +28,7 @@ Recorded: 2026-08-20
 
 A native Chromium build was **not** attempted or claimed. The live host is ARM64 under PRoot with 7.4 GiB RAM and 69 GiB free; GN, Ninja and depot_tools are absent. Both source bootstrap and build scripts were executed and correctly refused this unsupported release environment with exit code 2.
 
-Consequently, native Chromium patches, renderer-level fingerprint enforcement, network-service egress confinement, chrome-level mode UI, and browser/packet-capture tests remain `BLOCKED`, exactly as listed in `tests/privacy/TEST-MATRIX.md`. The repository contains an explicit patch map, but `patches/series` remains empty rather than listing unbuilt/fabricated patches.
+Consequently, renderer-level fingerprint enforcement, network-service egress confinement, chrome-level mode UI, and browser/packet-capture tests remain `BLOCKED`, exactly as listed in `tests/privacy/TEST-MATRIX.md`. The first native-default patch is now present in `patches/series` and has passed isolated `git am --3way` application against exact M151 files, but remains explicitly uncompiled. Tracking/fingerprint and Anonymous egress artifacts under `build/work/drafts/` remain candidate/pseudodiff material until reviewed and promoted.
 
 ## Reproducible continuation
 

@@ -4,6 +4,7 @@
 
 | Area | Local evidence | Browser/native E2E |
 |---|---|---|
+| Native privacy defaults | exact-file `git am --3way`: PASS | Compile/profile behavior: BLOCKED |
 | Third-party cookies | Policy JSON unit: PASS | Embedded A/B origin test: BLOCKED |
 | Storage/cache/history | Ephemeral profile deletion: PASS | Cookie/IDB/SW/cache population: BLOCKED |
 | Session cleanup | Normal profile/Tor cleanup: PASS | Crash scavenging: BLOCKED |

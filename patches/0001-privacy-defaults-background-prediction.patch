@@ -1,0 +1,36 @@
+From 11782b474e6743d44435c846f3d03e5f63865fd3 Mon Sep 17 00:00:00 2001
+From: Aegis Browser <aegis@localhost>
+Date: Thu, 20 Aug 2026 21:50:00 +0000
+Subject: [PATCH] privacy: disable background mode and prediction by default
+
+---
+ chrome/browser/background/extensions/background_mode_manager.cc | 2 +-
+ chrome/browser/preloading/preloading_prefs.cc                   | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/chrome/browser/background/extensions/background_mode_manager.cc b/chrome/browser/background/extensions/background_mode_manager.cc
+index d92f6fa..e4a965b 100644
+--- a/chrome/browser/background/extensions/background_mode_manager.cc
++++ b/chrome/browser/background/extensions/background_mode_manager.cc
+@@ -348,7 +348,7 @@ BackgroundModeManager::~BackgroundModeManager() {
+ 
+ // static
+ void BackgroundModeManager::RegisterPrefs(PrefRegistrySimple* registry) {
+-  registry->RegisterBooleanPref(prefs::kBackgroundModeEnabled, true);
++  registry->RegisterBooleanPref(prefs::kBackgroundModeEnabled, false);
+ }
+ 
+ void BackgroundModeManager::RegisterProfile(Profile* profile) {
+diff --git a/chrome/browser/preloading/preloading_prefs.cc b/chrome/browser/preloading/preloading_prefs.cc
+index 69ba78f..12fbe21 100644
+--- a/chrome/browser/preloading/preloading_prefs.cc
++++ b/chrome/browser/preloading/preloading_prefs.cc
+@@ -16,7 +16,7 @@ void RegisterPredictionOptionsProfilePrefs(
+     user_prefs::PrefRegistrySyncable* registry) {
+   registry->RegisterIntegerPref(
+       prefs::kNetworkPredictionOptions,
+-      static_cast<int>(NetworkPredictionOptions::kDefault),
++      static_cast<int>(NetworkPredictionOptions::kDisabled),
+       user_prefs::PrefRegistrySyncable::SYNCABLE_PREF);
+ }
+ 
