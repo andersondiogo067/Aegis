@@ -12,7 +12,7 @@ Recorded: 2026-08-20
 
 ## Executed verification
 
-- 36 deterministic unit/repository tests: **PASS**.
+- 37 deterministic unit/repository tests: **PASS**.
 - Security flag scan: **PASS**.
 - Policy/extension JSON validation: **PASS**.
 - Pinned 2,781,507-byte filter download and SHA-256 verification: **PASS**; 93,515 domains parsed.
@@ -22,7 +22,8 @@ Recorded: 2026-08-20
 - Ephemeral Tor data cleanup: **PASS**.
 - Unified launcher exercised in all three modes with a fake Chromium process: **PASS**; Anonymous generated only fixed Tor proxy/no-loopback-bypass/remote-DNS/QUIC-off/WebRTC-restricted arguments.
 - External IPv4 process network audit exercised against real HTTPS: **PASS**.
-- Git worktree clean after five phase commits: **PASS**.
+- Three ordered native patches applied to exact M151 files with isolated `git am --3way`: **PASS**.
+- Git worktree clean after the five phase commits plus three native-preparation commits: **PASS**.
 
 ## Honest blocker
 

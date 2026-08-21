@@ -16,6 +16,7 @@ Host-capable deliverables are implemented and tested:
 - dedicated authenticated Tor sessions and fail-closed Anonymous development launcher;
 - evidence-driven dashboard, fingerprint diagnostic page and external-network audit harness;
 - x86-64 self-hosted CI build workflow and an exact PASS/BLOCKED test matrix.
+- three ordered M151 native patches: editable privacy defaults, conservative tracking-URL utility, and foundational Anonymous egress gate state machine; all apply-tested but explicitly uncompiled.
 
 ## Quick checks
 
