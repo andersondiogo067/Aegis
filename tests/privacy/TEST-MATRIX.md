@@ -13,7 +13,8 @@
 | DNS/proxy | SOCKS remote-hostname live route: PASS | Zero direct DNS/DoH packet capture: BLOCKED |
 | Tor | Control+SOCKS unit and official IsTor live check: PASS | Native browser egress gate: BLOCKED |
 | Tor fail-closed | Gate unit + stop-Tor live health test: PASS | Mid-navigation browser kill/packet capture: BLOCKED |
-| URL tracking | Pure conservative/idempotent behavior: PASS | Navigation-throttle integration: BLOCKED |
+| Native tracking URL utility | exact-file `git am --3way`: PASS; C++ tests authored | Compile/unit execution: BLOCKED |
+| URL tracking | Pure conservative/idempotent Python behavior: PASS | Navigation-throttle integration: BLOCKED |
 | Permissions | M151 policy keys/enums unit: PASS | Prompt/content-setting browser test: BLOCKED |
 | Tracker rules | parser/hash/DNR compilation: PASS | Native URLLoader coverage/counter: BLOCKED |
 | Unexpected network | strace IPv4 audit harness exercised: PASS | Chromium startup baseline: BLOCKED |

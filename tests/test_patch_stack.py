@@ -14,7 +14,10 @@ class PatchStackTests(unittest.TestCase):
         ]
         self.assertEqual(
             entries,
-            ["0001-privacy-defaults-background-prediction.patch"],
+            [
+                "0001-privacy-defaults-background-prediction.patch",
+                "0002-tracking-url-utils.patch",
+            ],
         )
         for entry in entries:
             payload = (ROOT / "patches" / entry).read_text()

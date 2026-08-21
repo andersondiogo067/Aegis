@@ -1,0 +1,231 @@
+From 0452db4057d1467be7d79464d08f14f697b7b518 Mon Sep 17 00:00:00 2001
+From: Aegis Browser <aegis@localhost>
+Date: Thu, 20 Aug 2026 22:10:00 +0000
+Subject: [PATCH] tracking: add conservative URL parameter cleaner
+
+Authored against Chromium 151.0.7922.173. Includes unit tests, but native
+compilation and test execution remain blocked on this non-x86-64 host.
+---
+ chrome/browser/BUILD.gn                       |   2 +
+ chrome/browser/privacy/tracking_url_utils.cc  | 106 ++++++++++++++++++
+ chrome/browser/privacy/tracking_url_utils.h   |  17 +++
+ .../privacy/tracking_url_utils_unittest.cc    |  47 ++++++++
+ chrome/test/BUILD.gn                          |   1 +
+ 5 files changed, 173 insertions(+)
+ create mode 100644 chrome/browser/privacy/tracking_url_utils.cc
+ create mode 100644 chrome/browser/privacy/tracking_url_utils.h
+ create mode 100644 chrome/browser/privacy/tracking_url_utils_unittest.cc
+
+diff --git a/chrome/browser/BUILD.gn b/chrome/browser/BUILD.gn
+index bfc8555..4fff536 100644
+--- a/chrome/browser/BUILD.gn
++++ b/chrome/browser/BUILD.gn
+@@ -843,6 +843,8 @@ source_set("core") {
+     "chrome_content_browser_client_binder_policies.h",
+     "chrome_content_browser_client_navigation_throttles.cc",
+     "chrome_content_browser_client_navigation_throttles.h",
++    "privacy/tracking_url_utils.cc",
++    "privacy/tracking_url_utils.h",
+     "chrome_content_browser_client_receiver_bindings.cc",
+     "chrome_resource_bundle_helper.cc",
+     "chrome_resource_bundle_helper.h",
+diff --git a/chrome/browser/privacy/tracking_url_utils.cc b/chrome/browser/privacy/tracking_url_utils.cc
+new file mode 100644
+index 0000000..ad328e9
+--- /dev/null
++++ b/chrome/browser/privacy/tracking_url_utils.cc
+@@ -0,0 +1,106 @@
++// Copyright 2026 The Aegis Authors
++// Use of this source code is governed by a BSD-style license.
++
++#include "chrome/browser/privacy/tracking_url_utils.h"
++
++#include <array>
++#include <string>
++#include <string_view>
++
++#include "base/strings/string_util.h"
++
++namespace aegis {
++namespace {
++
++constexpr std::array<std::string_view, 9> kTrackingParameters = {
++    "fbclid", "gclid", "dclid", "msclkid", "mc_cid",
++    "mc_eid", "igshid", "vero_conv", "vero_id"};
++
++int HexValue(char c) {
++  if (c >= '0' && c <= '9')
++    return c - '0';
++  if (c >= 'a' && c <= 'f')
++    return c - 'a' + 10;
++  if (c >= 'A' && c <= 'F')
++    return c - 'A' + 10;
++  return -1;
++}
++
++std::string DecodeKeyForComparison(std::string_view raw_key) {
++  std::string decoded;
++  decoded.reserve(raw_key.size());
++  for (size_t i = 0; i < raw_key.size(); ++i) {
++    const char c = raw_key[i];
++    if (c == '+') {
++      decoded.push_back(' ');
++      continue;
++    }
++    if (c == '%' && i + 2 < raw_key.size()) {
++      const int high = HexValue(raw_key[i + 1]);
++      const int low = HexValue(raw_key[i + 2]);
++      if (high >= 0 && low >= 0) {
++        decoded.push_back(static_cast<char>((high << 4) | low));
++        i += 2;
++        continue;
++      }
++    }
++    decoded.push_back(c);
++  }
++  return base::ToLowerASCII(decoded);
++}
++
++bool IsTrackingKey(std::string_view raw_part) {
++  const size_t equals = raw_part.find('=');
++  const std::string key = DecodeKeyForComparison(raw_part.substr(0, equals));
++  if (base::StartsWith(key, "utm_", base::CompareCase::SENSITIVE))
++    return true;
++  for (std::string_view known : kTrackingParameters) {
++    if (key == known)
++      return true;
++  }
++  return false;
++}
++
++}  // namespace
++
++GURL StripTrackingParameters(const GURL& url) {
++  if (!url.is_valid() || !url.SchemeIsHTTPOrHTTPS() || !url.has_query())
++    return url;
++
++  const std::string_view query = url.query();
++  std::string kept;
++  kept.reserve(query.size());
++  bool changed = false;
++  bool first_kept = true;
++
++  size_t start = 0;
++  while (start <= query.size()) {
++    size_t end = query.find('&', start);
++    if (end == std::string_view::npos)
++      end = query.size();
++    const std::string_view part = query.substr(start, end - start);
++    if (IsTrackingKey(part)) {
++      changed = true;
++    } else {
++      if (!first_kept)
++        kept.push_back('&');
++      kept.append(part);
++      first_kept = false;
++    }
++    if (end == query.size())
++      break;
++    start = end + 1;
++  }
++
++  if (!changed)
++    return url;
++
++  GURL::Replacements replacements;
++  if (kept.empty())
++    replacements.ClearQuery();
++  else
++    replacements.SetQueryStr(kept);
++  return url.ReplaceComponents(replacements);
++}
++
++}  // namespace aegis
+diff --git a/chrome/browser/privacy/tracking_url_utils.h b/chrome/browser/privacy/tracking_url_utils.h
+new file mode 100644
+index 0000000..f7a753a
+--- /dev/null
++++ b/chrome/browser/privacy/tracking_url_utils.h
+@@ -0,0 +1,17 @@
++// Copyright 2026 The Aegis Authors
++// Use of this source code is governed by a BSD-style license.
++
++#ifndef CHROME_BROWSER_PRIVACY_TRACKING_URL_UTILS_H_
++#define CHROME_BROWSER_PRIVACY_TRACKING_URL_UTILS_H_
++
++#include "url/gurl.h"
++
++namespace aegis {
++
++// Removes explicit click identifiers and the utm_ namespace from HTTP(S)
++// queries. Unknown query parts retain their raw order and spelling.
++GURL StripTrackingParameters(const GURL& url);
++
++}  // namespace aegis
++
++#endif  // CHROME_BROWSER_PRIVACY_TRACKING_URL_UTILS_H_
+diff --git a/chrome/browser/privacy/tracking_url_utils_unittest.cc b/chrome/browser/privacy/tracking_url_utils_unittest.cc
+new file mode 100644
+index 0000000..d155b55
+--- /dev/null
++++ b/chrome/browser/privacy/tracking_url_utils_unittest.cc
+@@ -0,0 +1,47 @@
++// Copyright 2026 The Aegis Authors
++// Use of this source code is governed by a BSD-style license.
++
++#include "chrome/browser/privacy/tracking_url_utils.h"
++
++#include "testing/gtest/include/gtest/gtest.h"
++
++namespace aegis {
++namespace {
++
++TEST(TrackingUrlUtilsTest, RemovesKnownKeysAndPreservesUnknownQuery) {
++  EXPECT_EQ(
++      "https://shop.example/item?sku=42&color=blue#details",
++      StripTrackingParameters(GURL(
++          "https://shop.example/item?sku=42&utm_source=x&color=blue&fbclid=y#details"))
++          .spec());
++}
++
++TEST(TrackingUrlUtilsTest, MatchesCaseAndPercentEncodedKeys) {
++  EXPECT_EQ("https://example.test/?keep=1",
++            StripTrackingParameters(GURL(
++                "https://example.test/?UTM_Campaign=x&%67clid=y&keep=1"))
++                .spec());
++}
++
++TEST(TrackingUrlUtilsTest, PreservesDuplicatesEmptyPartsAndRawValues) {
++  EXPECT_EQ("https://example.test/?a=1&&a=%2F&",
++            StripTrackingParameters(GURL(
++                "https://example.test/?a=1&&utm_x=z&a=%2F&"))
++                .spec());
++}
++
++TEST(TrackingUrlUtilsTest, LeavesUnknownAndNonHttpUrlsUnchanged) {
++  const GURL unknown("https://example.test/?custom_id=7");
++  const GURL mailto("mailto:a@example.test?utm_source=x");
++  EXPECT_EQ(unknown, StripTrackingParameters(unknown));
++  EXPECT_EQ(mailto, StripTrackingParameters(mailto));
++}
++
++TEST(TrackingUrlUtilsTest, IsIdempotent) {
++  const GURL source("https://example.test/?utm_source=x&a=1");
++  const GURL once = StripTrackingParameters(source);
++  EXPECT_EQ(once, StripTrackingParameters(once));
++}
++
++}  // namespace
++}  // namespace aegis
+diff --git a/chrome/test/BUILD.gn b/chrome/test/BUILD.gn
+index 9e2dc91..84723b8 100644
+--- a/chrome/test/BUILD.gn
++++ b/chrome/test/BUILD.gn
+@@ -5572,6 +5572,7 @@ test("unit_tests") {
+     "../browser/chrome_browser_field_trials_unittest.cc",
+     "../browser/chrome_content_browser_client_parts_unittest.cc",
+     "../browser/chrome_content_browser_client_unittest.cc",
++    "../browser/privacy/tracking_url_utils_unittest.cc",
+     "../browser/command_updater_impl_unittest.cc",
+     "../browser/enterprise/connectors/interstitials/enterprise_page_unittest.cc",
+     "../browser/enterprise/encryption/cache_encryption_provider_impl_unittest.cc",

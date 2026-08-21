@@ -8,15 +8,20 @@ The current host cannot build a supported x86-64 Chromium tree. `patches/series`
    - changes the user-overridable native defaults for background mode (`false`) and network prediction (`kDisabled`);
    - applied successfully with `git am --3way` to clean copies of the exact M151 files;
    - not yet compiled or browser-tested.
+2. `0002-tracking-url-utils.patch`
+   - adds a pure conservative HTTP(S) query cleaner and five C++ unit tests;
+   - preserves unknown query pieces, ordering, duplicates, fragments and raw values;
+   - uses the exact M151 `GURL::query()` API and passed isolated `git am --3way`;
+   - does not integrate a navigation throttle; native compilation/tests remain blocked.
 
 ## Planned order
 
 Next downstream commits should cover:
 
-1. product branding and default managed preferences;
-2. navigation throttle invoking conservative tracking-parameter removal;
+1. product branding and remaining native defaults;
+2. navigation integration invoking conservative tracking-parameter removal, gated by browser tests;
 3. network-service tracker matcher fed only from local verified lists;
-4. central Blink fingerprint cohort plumbing (Canvas, WebGL, Audio, fonts, screen/navigator/timezone);
+4. coherent fingerprint cohort enforcement across renderer and headers;
 5. mode/profile controller and Anonymous fail-closed network delegate;
 6. Privacy Dashboard signals sourced from actual enforcement counters.
 

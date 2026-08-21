@@ -1,3 +1,4 @@
 # Ordered Chromium downstream patches; one path per line.
 # Patches apply with git am --3way in scripts/apply_patches.sh.
 0001-privacy-defaults-background-prediction.patch
+0002-tracking-url-utils.patch
