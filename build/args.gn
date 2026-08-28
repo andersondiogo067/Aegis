@@ -6,3 +6,4 @@ treat_warnings_as_errors = false
 use_sysroot = true
 use_sandbox = true
 is_official_build = true
+chrome_pgo_phase = 0
