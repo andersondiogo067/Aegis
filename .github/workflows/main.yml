@@ -1,0 +1,28 @@
+name: Testar runner do Aegis
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Ver arquitetura
+        run: uname -m
+
+      - name: Ver CPU
+        run: nproc && lscpu
+
+      - name: Ver RAM
+        run: free -h
+
+      - name: Ver disco
+        run: df -h
+
+      - name: Ver espaço disponível
+        run: |
+          echo "=== ROOT ==="
+          df -h /
+          echo "=== HOME ==="
+          df -h "$HOME"
