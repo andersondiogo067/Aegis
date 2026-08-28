@@ -12,6 +12,29 @@ jobs:
       - name: Checkout Aegis
         uses: actions/checkout@v4
 
+      - name: Validar arquivos do Aegis
+        run: |
+          echo "=== VALIDANDO PROJETO ==="
+
+          test -f patches/series
+          test -f build/args.gn
+          test -f scripts/apply_patches.sh
+
+          test -f patches/0001-privacy-defaults-background-prediction.patch
+          test -f patches/0002-tracking-url-utils.patch
+          test -f patches/0003-anonymous-egress-gate.patch
+
+          echo "Arquivos essenciais encontrados."
+
+      - name: Configurar identidade Git
+        run: |
+          git config --global user.name "Aegis Builder"
+          git config --global user.email "aegis-builder@users.noreply.github.com"
+
+          echo "Git configurado:"
+          git config --global user.name
+          git config --global user.email
+
       - name: Liberar espaço
         run: |
           echo "=== ANTES ==="
@@ -129,28 +152,16 @@ jobs:
 
           gclient runhooks
 
-      - name: Verificar arquivos do Aegis
-        run: |
-          echo "=== CONTEÚDO DO REPOSITÓRIO ==="
-          ls -la
-
-          echo "=== PATCHES ==="
-          ls -la patches || true
-
-          echo "=== BUILD ==="
-          ls -la build || true
-
       - name: Aplicar patches do Aegis
         run: |
+          export PATH="$HOME/depot_tools:$PATH"
+
           cd "$HOME/chromium/src"
 
-          if [ ! -f "$GITHUB_WORKSPACE/patches/series" ]; then
-            echo "ERRO: patches/series não existe no repositório."
-            exit 1
-          fi
+          echo "=== PATCHES ==="
+          cat "$GITHUB_WORKSPACE/patches/series"
 
           while IFS= read -r patch; do
-
             [ -z "$patch" ] && continue
 
             case "$patch" in
@@ -161,10 +172,13 @@ jobs:
 
             echo "Aplicando patch: $patch"
 
-            git am \
+            git am --3way \
               "$GITHUB_WORKSPACE/patches/$patch"
 
           done < "$GITHUB_WORKSPACE/patches/series"
+
+          echo "=== COMMITS APÓS PATCHES ==="
+          git log --oneline -5
 
       - name: Gerar build GN
         run: |
@@ -174,19 +188,14 @@ jobs:
 
           mkdir -p out/Aegis
 
-          if [ ! -f "$GITHUB_WORKSPACE/build/args.gn" ]; then
-            echo "ERRO: build/args.gn não existe."
-            exit 1
-          fi
-
           cp \
             "$GITHUB_WORKSPACE/build/args.gn" \
             out/Aegis/args.gn
 
-          gn gen out/Aegis
+          echo "=== ARGS.GN ==="
+          cat out/Aegis/args.gn
 
-          echo "=== ARGUMENTOS GN ==="
-          gn args out/Aegis --list --short | head -100
+          gn gen out/Aegis
 
           echo "=== DISCO ANTES DA COMPILAÇÃO ==="
           df -h /
@@ -209,9 +218,13 @@ jobs:
         run: |
           cd "$HOME/chromium/src/out/Aegis"
 
+          echo "=== CHROME ==="
           ls -lh chrome
+
+          echo "=== TIPO ==="
           file chrome
 
+          echo "=== VERSÃO ==="
           ./chrome \
             --version \
             --no-sandbox || true
@@ -252,6 +265,7 @@ jobs:
             aegis-linux-x64.tar.gz \
             package
 
+          echo "=== ARQUIVO FINAL ==="
           ls -lh aegis-linux-x64.tar.gz
 
       - name: Enviar Aegis
@@ -261,5 +275,3 @@ jobs:
           path: aegis-linux-x64.tar.gz
           retention-days: 7
           compression-level: 0
-
-         
