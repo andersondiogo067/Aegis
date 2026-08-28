@@ -14,7 +14,7 @@ jobs:
 
       - name: Liberar espaço
         run: |
-          echo "ANTES:"
+          echo "=== ANTES ==="
           df -h /
 
           sudo rm -rf /usr/local/lib/android
@@ -25,12 +25,13 @@ jobs:
 
           sudo apt-get clean
 
-          echo "DEPOIS:"
+          echo "=== DEPOIS ==="
           df -h /
 
       - name: Instalar dependências básicas
         run: |
           sudo apt-get update
+
           sudo apt-get install -y \
             build-essential \
             ca-certificates \
@@ -55,37 +56,51 @@ jobs:
 
           echo "$HOME/depot_tools" >> "$GITHUB_PATH"
 
-      - name: Ler versão do Chromium
+      - name: Definir versão do Chromium
         id: chromium
         run: |
-          VERSION="$(tr -d '[:space:]' < CHROMIUM_VERSION)"
+          VERSION="151.0.7922.173"
+
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "Chromium: $VERSION"
 
-      - name: Preparar checkout
+      - name: Preparar checkout do Chromium
         run: |
           export PATH="$HOME/depot_tools:$PATH"
 
           mkdir -p "$HOME/chromium"
           cd "$HOME/chromium"
 
-          fetch --nohooks --no-history chromium
+          fetch \
+            --nohooks \
+            --no-history \
+            chromium
 
-      - name: Fixar versão do Chromium
+          echo "=== DISCO APÓS FETCH ==="
+          df -h /
+
+      - name: Fixar Chromium 151.0.7922.173
         run: |
           export PATH="$HOME/depot_tools:$PATH"
 
           cd "$HOME/chromium/src"
 
-          git fetch --depth=1 origin \
+          git fetch \
+            --depth=1 \
+            origin \
             tag "${{ steps.chromium.outputs.version }}" || \
-          git fetch --depth=1 origin \
+          git fetch \
+            --depth=1 \
+            origin \
             "${{ steps.chromium.outputs.version }}"
 
-          git checkout --detach \
+          git checkout \
+            --detach \
             "${{ steps.chromium.outputs.version }}"
 
-      - name: Sincronizar dependências
+          git status
+
+      - name: Sincronizar dependências do Chromium
         run: |
           export PATH="$HOME/depot_tools:$PATH"
 
@@ -96,33 +111,59 @@ jobs:
             --nohooks \
             --with_branch_heads
 
+          echo "=== DISCO APÓS GCLIENT ==="
+          df -h /
+
       - name: Instalar dependências do Chromium
         run: |
           cd "$HOME/chromium/src"
-          sudo ./build/install-build-deps.sh --no-prompt
+
+          sudo ./build/install-build-deps.sh \
+            --no-prompt
 
       - name: Executar hooks
         run: |
           export PATH="$HOME/depot_tools:$PATH"
 
           cd "$HOME/chromium"
+
           gclient runhooks
+
+      - name: Verificar arquivos do Aegis
+        run: |
+          echo "=== CONTEÚDO DO REPOSITÓRIO ==="
+          ls -la
+
+          echo "=== PATCHES ==="
+          ls -la patches || true
+
+          echo "=== BUILD ==="
+          ls -la build || true
 
       - name: Aplicar patches do Aegis
         run: |
           cd "$HOME/chromium/src"
 
+          if [ ! -f "$GITHUB_WORKSPACE/patches/series" ]; then
+            echo "ERRO: patches/series não existe no repositório."
+            exit 1
+          fi
+
           while IFS= read -r patch; do
+
             [ -z "$patch" ] && continue
 
             case "$patch" in
-              \#*) continue ;;
+              \#*)
+                continue
+                ;;
             esac
 
-            echo "Aplicando $patch"
+            echo "Aplicando patch: $patch"
 
             git am \
               "$GITHUB_WORKSPACE/patches/$patch"
+
           done < "$GITHUB_WORKSPACE/patches/series"
 
       - name: Gerar build GN
@@ -133,13 +174,21 @@ jobs:
 
           mkdir -p out/Aegis
 
+          if [ ! -f "$GITHUB_WORKSPACE/build/args.gn" ]; then
+            echo "ERRO: build/args.gn não existe."
+            exit 1
+          fi
+
           cp \
             "$GITHUB_WORKSPACE/build/args.gn" \
             out/Aegis/args.gn
 
           gn gen out/Aegis
 
-          echo "Espaço restante:"
+          echo "=== ARGUMENTOS GN ==="
+          gn args out/Aegis --list --short | head -100
+
+          echo "=== DISCO ANTES DA COMPILAÇÃO ==="
           df -h /
 
       - name: Compilar Aegis
@@ -153,21 +202,64 @@ jobs:
             -j2 \
             chrome
 
-      - name: Empacotar
+          echo "=== DISCO APÓS COMPILAÇÃO ==="
+          df -h /
+
+      - name: Verificar build
         run: |
           cd "$HOME/chromium/src/out/Aegis"
 
-          tar -czf \
-            "$GITHUB_WORKSPACE/aegis-linux-x64.tar.gz" \
-            chrome \
-            chrome_sandbox \
-            icudtl.dat \
-            resources.pak \
-            locales
+          ls -lh chrome
+          file chrome
 
-      - name: Enviar build
+          ./chrome \
+            --version \
+            --no-sandbox || true
+
+      - name: Empacotar Aegis
+        run: |
+          cd "$HOME/chromium/src/out/Aegis"
+
+          mkdir -p "$GITHUB_WORKSPACE/package"
+
+          cp chrome \
+            "$GITHUB_WORKSPACE/package/"
+
+          [ -f chrome_sandbox ] && \
+            cp chrome_sandbox "$GITHUB_WORKSPACE/package/"
+
+          [ -f icudtl.dat ] && \
+            cp icudtl.dat "$GITHUB_WORKSPACE/package/"
+
+          [ -f resources.pak ] && \
+            cp resources.pak "$GITHUB_WORKSPACE/package/"
+
+          [ -f chrome_100_percent.pak ] && \
+            cp chrome_100_percent.pak "$GITHUB_WORKSPACE/package/"
+
+          [ -f chrome_200_percent.pak ] && \
+            cp chrome_200_percent.pak "$GITHUB_WORKSPACE/package/"
+
+          [ -d locales ] && \
+            cp -r locales "$GITHUB_WORKSPACE/package/"
+
+          [ -d resources ] && \
+            cp -r resources "$GITHUB_WORKSPACE/package/"
+
+          cd "$GITHUB_WORKSPACE"
+
+          tar -czf \
+            aegis-linux-x64.tar.gz \
+            package
+
+          ls -lh aegis-linux-x64.tar.gz
+
+      - name: Enviar Aegis
         uses: actions/upload-artifact@v4
         with:
           name: Aegis-Linux-x64
           path: aegis-linux-x64.tar.gz
           retention-days: 7
+          compression-level: 0
+
+         
