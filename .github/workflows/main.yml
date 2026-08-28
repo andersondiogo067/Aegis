@@ -12,259 +12,139 @@ jobs:
     name: Pre-check Aegis
     runs-on: ubuntu-latest
     timeout-minutes: 5
-
     steps:
       - name: Checkout Aegis
         uses: actions/checkout@v4
-
       - name: Validar estrutura do projeto
         shell: bash
         run: |
           set -euo pipefail
-
-          required=(
-            build/args.gn
-            patches/series
-            scripts/apply_patches.sh
-            patches/0001-privacy-defaults-background-prediction.patch
-            patches/0002-tracking-url-utils.patch
-            patches/0003-anonymous-egress-gate.patch
-          )
-
-          for file in "${required[@]}"; do
-            test -f "$file" || {
-              echo "Arquivo obrigatório ausente: $file"
-              exit 1
-            }
-          done
-
-          echo "OK: estrutura essencial encontrada"
-
+          required=(build/args.gn patches/series scripts/apply_patches.sh patches/0001-privacy-defaults-background-prediction.patch patches/0002-tracking-url-utils.patch patches/0003-anonymous-egress-gate.patch)
+          for file in "${required[@]}"; do test -f "$file" || { echo "Arquivo obrigatório ausente: $file"; exit 1; }; done
       - name: Validar configuração GN
         shell: bash
         run: |
           set -euo pipefail
-
-          echo "=== build/args.gn ==="
           cat build/args.gn
-
           grep -Eq '^is_debug[[:space:]]*=[[:space:]]*false$' build/args.gn
           grep -Eq '^use_sandbox[[:space:]]*=[[:space:]]*true$' build/args.gn
           grep -Eq '^chrome_pgo_phase[[:space:]]*=[[:space:]]*0$' build/args.gn
-
-          if grep -Eq '^use_sandbox[[:space:]]*=[[:space:]]*false$|^is_debug[[:space:]]*=[[:space:]]*true$' build/args.gn; then
-            echo "Configuração GN insegura/incompatível detectada"
-            exit 1
-          fi
-
-          echo "OK: args.gn"
-
+          if grep -Eq '^use_sandbox[[:space:]]*=[[:space:]]*false$|^is_debug[[:space:]]*=[[:space:]]*true$' build/args.gn; then exit 1; fi
       - name: Validar lista e formato dos patches
         shell: bash
         run: |
           set -euo pipefail
-
           count=0
           while IFS= read -r patch; do
-            patch="${patch%$'\r'}"
-            [ -z "$patch" ] && continue
-            case "$patch" in
-              \#*) continue ;;
-            esac
-
-            file="patches/$patch"
-            test -f "$file" || {
-              echo "Patch ausente: $file"
-              exit 1
-            }
-
-            git apply --numstat "$file" >/dev/null || {
-              echo "Patch malformado: $file"
-              exit 1
-            }
-
+            patch="${patch%$'\r'}"; [ -z "$patch" ] && continue
+            case "$patch" in \#*) continue ;; esac
+            file="patches/$patch"; test -f "$file" || exit 1
+            git apply --numstat "$file" >/dev/null || exit 1
             count=$((count + 1))
           done < patches/series
-
           test "$count" -gt 0
-          echo "OK: $count patches encontrados e parseáveis"
 
   build:
     name: Build Chromium
     needs: precheck
     runs-on: ubuntu-latest
     timeout-minutes: 360
-
     steps:
       - name: Checkout Aegis
         uses: actions/checkout@v4
-
       - name: Configurar Git
         run: |
           git config --global user.name "Aegis Builder"
           git config --global user.email "aegis-builder@users.noreply.github.com"
-
       - name: Liberar espaço
         run: |
-          echo "=== ANTES ==="
           df -h /
-
-          sudo rm -rf /usr/local/lib/android
-          sudo rm -rf /usr/share/dotnet
-          sudo rm -rf /opt/ghc
-          sudo rm -rf /usr/local/.ghcup
-          sudo rm -rf /opt/hostedtoolcache/CodeQL
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL
           sudo apt-get clean
-
-          echo "=== DEPOIS ==="
           df -h /
-
       - name: Instalar dependências básicas
         run: |
           sudo apt-get update
-          sudo apt-get install -y \
-            build-essential \
-            ca-certificates \
-            clang \
-            curl \
-            file \
-            git \
-            lld \
-            lsb-release \
-            pkg-config \
-            python3 \
-            python3-venv \
-            rsync \
-            unzip \
-            xz-utils
-
+          sudo apt-get install -y build-essential ca-certificates clang curl file git lld lsb-release pkg-config python3 python3-venv rsync unzip xz-utils
       - name: Restaurar cache depot_tools
         id: depot-cache
         uses: actions/cache@v4
         with:
           path: ~/depot_tools
           key: depot-tools-v1
-
       - name: Instalar depot_tools
         if: steps.depot-cache.outputs.cache-hit != 'true'
-        run: |
-          git clone --depth=1 \
-            https://chromium.googlesource.com/chromium/tools/depot_tools.git \
-            "$HOME/depot_tools"
-
+        run: git clone --depth=1 https://chromium.googlesource.com/chromium/tools/depot_tools.git "$HOME/depot_tools"
       - name: Preparar depot_tools
         run: |
           echo "$HOME/depot_tools" >> "$GITHUB_PATH"
           export PATH="$HOME/depot_tools:$PATH"
           gclient metrics --disable || true
-
       - name: Definir Chromium
         id: chromium
         run: |
           VERSION="151.0.7922.173"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "Chromium $VERSION"
-
       - name: Fetch Chromium
         run: |
           export PATH="$HOME/depot_tools:$PATH"
-          mkdir -p "$HOME/chromium"
-          cd "$HOME/chromium"
-
+          mkdir -p "$HOME/chromium" && cd "$HOME/chromium"
           fetch --nohooks --no-history chromium
           df -h /
-
       - name: Fixar Chromium
         run: |
           export PATH="$HOME/depot_tools:$PATH"
           cd "$HOME/chromium/src"
           VERSION="${{ steps.chromium.outputs.version }}"
-
-          git fetch --depth=1 origin tag "$VERSION" || \
-            git fetch --depth=1 origin "$VERSION"
+          git fetch --depth=1 origin tag "$VERSION" || git fetch --depth=1 origin "$VERSION"
           git checkout --detach "$VERSION"
-          git status --short --branch
-
       - name: Sincronizar dependências
         run: |
           export PATH="$HOME/depot_tools:$PATH"
           cd "$HOME/chromium"
-
-          gclient sync \
-            --no-history \
-            --nohooks \
-            --with_branch_heads
-
+          gclient sync --no-history --nohooks --with_branch_heads
           df -h /
-
       - name: Instalar dependências Chromium
-        run: |
-          cd "$HOME/chromium/src"
-          sudo ./build/install-build-deps.sh --no-prompt
-
+        run: cd "$HOME/chromium/src" && sudo ./build/install-build-deps.sh --no-prompt
       - name: Executar hooks
         run: |
           export PATH="$HOME/depot_tools:$PATH"
-          cd "$HOME/chromium"
-          gclient runhooks
-
+          cd "$HOME/chromium" && gclient runhooks
       - name: Testar patches contra Chromium
         run: |
           set -euo pipefail
           cd "$HOME/chromium/src"
-
           while IFS= read -r patch; do
-            patch="${patch%$'\r'}"
-            [ -z "$patch" ] && continue
-            case "$patch" in
-              \#*) continue ;;
-            esac
-
-            echo "Testando $patch"
+            patch="${patch%$'\r'}"; [ -z "$patch" ] && continue; case "$patch" in \#*) continue ;; esac
             git apply --check "$GITHUB_WORKSPACE/patches/$patch"
           done < "$GITHUB_WORKSPACE/patches/series"
-
       - name: Aplicar patches Aegis
         run: |
           set -euo pipefail
           cd "$HOME/chromium/src"
-
           while IFS= read -r patch; do
-            patch="${patch%$'\r'}"
-            [ -z "$patch" ] && continue
-            case "$patch" in
-              \#*) continue ;;
-            esac
-
-            echo "Aplicando $patch"
+            patch="${patch%$'\r'}"; [ -z "$patch" ] && continue; case "$patch" in \#*) continue ;; esac
             git am --3way "$GITHUB_WORKSPACE/patches/$patch"
           done < "$GITHUB_WORKSPACE/patches/series"
-
-          git log --oneline -5
-
       - name: Gerar build GN
         run: |
           export PATH="$HOME/depot_tools:$PATH"
           cd "$HOME/chromium/src"
-
           mkdir -p out/Aegis
           cp "$GITHUB_WORKSPACE/build/args.gn" out/Aegis/args.gn
-
-          echo "=== args.gn ==="
           cat out/Aegis/args.gn
           gn gen out/Aegis
-
-          echo "=== DISCO ANTES DA COMPILAÇÃO ==="
           df -h /
-
       - name: Compilar Aegis
         run: |
           export PATH="$HOME/depot_tools:$PATH"
           cd "$HOME/chromium/src"
-
-          autoninja -C out/Aegis -j2 chrome
+          JOBS="$(nproc)"
+          [ "$JOBS" -gt 4 ] && JOBS=4
+          echo "Compilando com $JOBS jobs paralelos"
+          export NINJA_STATUS="[%f/%t] %es "
+          autoninja -C out/Aegis -j"$JOBS" chrome
           df -h /
-
       - name: Verificar build
         run: |
           cd "$HOME/chromium/src/out/Aegis"
@@ -272,32 +152,15 @@ jobs:
           ls -lh chrome
           file chrome
           ./chrome --version --no-sandbox || true
-
       - name: Empacotar Aegis
         run: |
-          SRC="$HOME/chromium/src/out/Aegis"
-          DEST="$GITHUB_WORKSPACE/package"
-          mkdir -p "$DEST"
-
+          SRC="$HOME/chromium/src/out/Aegis"; DEST="$GITHUB_WORKSPACE/package"; mkdir -p "$DEST"
           cp "$SRC/chrome" "$DEST/"
-
-          for file in \
-            chrome_sandbox \
-            icudtl.dat \
-            resources.pak \
-            chrome_100_percent.pak \
-            chrome_200_percent.pak
-          do
-            [ -f "$SRC/$file" ] && cp "$SRC/$file" "$DEST/"
-          done
-
+          for file in chrome_sandbox icudtl.dat resources.pak chrome_100_percent.pak chrome_200_percent.pak; do [ -f "$SRC/$file" ] && cp "$SRC/$file" "$DEST/"; done
           [ -d "$SRC/locales" ] && cp -r "$SRC/locales" "$DEST/"
           [ -d "$SRC/resources" ] && cp -r "$SRC/resources" "$DEST/"
-
-          cd "$GITHUB_WORKSPACE"
-          tar -czf aegis-linux-x64.tar.gz package
+          cd "$GITHUB_WORKSPACE" && tar -czf aegis-linux-x64.tar.gz package
           ls -lh aegis-linux-x64.tar.gz
-
       - name: Upload Aegis
         uses: actions/upload-artifact@v4
         with:
