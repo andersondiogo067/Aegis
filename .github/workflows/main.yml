@@ -46,13 +46,16 @@ jobs:
           done < patches/series
           test "$count" -gt 0
 
-  build:
-    name: Build Chromium
+  build_pass1:
+    name: Build Chromium · pass 1
     needs: precheck
     runs-on: ubuntu-latest
-    timeout-minutes: 360
+    timeout-minutes: 350
+    outputs:
+      compile_complete: ${{ steps.compile.outputs.complete }}
     env:
       SCCACHE_GHA_ENABLED: "true"
+      SCCACHE_CACHE_SIZE: "10G"
     steps:
       - name: Checkout Aegis
         uses: actions/checkout@v4
@@ -146,7 +149,163 @@ jobs:
           cat out/Aegis/args.gn
           gn gen out/Aegis
           df -h /
-      - name: Compilar Aegis
+      - name: Compilar Aegis · pass 1
+        id: compile
+        shell: bash
+        run: |
+          set -euo pipefail
+          export PATH="$HOME/depot_tools:$PATH"
+          cd "$HOME/chromium/src"
+          JOBS="$(nproc)"
+          [ "$JOBS" -gt 4 ] && JOBS=4
+          echo "Passo 1: até 285 min com $JOBS jobs + sccache"
+          export NINJA_STATUS="[%f/%t] %es "
+          set +e
+          timeout --signal=INT --kill-after=30s 285m autoninja -C out/Aegis -j"$JOBS" chrome
+          code=$?
+          set -e
+          sccache --show-stats || true
+          if [ "$code" -eq 0 ] && [ -x out/Aegis/chrome ]; then
+            echo "complete=true" >> "$GITHUB_OUTPUT"
+            echo "Chrome terminou no passo 1."
+          elif [ "$code" -eq 124 ] || [ "$code" -eq 130 ]; then
+            echo "complete=false" >> "$GITHUB_OUTPUT"
+            echo "Janela do passo 1 terminou; cache preservado para o passo 2."
+          else
+            echo "Compilação falhou com código $code"
+            exit "$code"
+          fi
+          df -h /
+      - name: Verificar build
+        if: steps.compile.outputs.complete == 'true'
+        run: |
+          cd "$HOME/chromium/src/out/Aegis"
+          test -x chrome
+          ls -lh chrome
+          file chrome
+          ./chrome --version --no-sandbox || true
+      - name: Empacotar Aegis
+        if: steps.compile.outputs.complete == 'true'
+        run: |
+          SRC="$HOME/chromium/src/out/Aegis"; DEST="$GITHUB_WORKSPACE/package"; mkdir -p "$DEST"
+          cp "$SRC/chrome" "$DEST/"
+          for file in chrome_sandbox icudtl.dat resources.pak chrome_100_percent.pak chrome_200_percent.pak; do [ -f "$SRC/$file" ] && cp "$SRC/$file" "$DEST/"; done
+          [ -d "$SRC/locales" ] && cp -r "$SRC/locales" "$DEST/"
+          [ -d "$SRC/resources" ] && cp -r "$SRC/resources" "$DEST/"
+          cd "$GITHUB_WORKSPACE" && tar -czf aegis-linux-x64.tar.gz package
+          ls -lh aegis-linux-x64.tar.gz
+      - name: Upload Aegis
+        if: steps.compile.outputs.complete == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Aegis-Linux-x64
+          path: aegis-linux-x64.tar.gz
+          compression-level: 0
+          retention-days: 7
+
+  build_finish:
+    name: Build Chromium · finish from cache
+    needs: [precheck, build_pass1]
+    if: needs.build_pass1.outputs.compile_complete != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    env:
+      SCCACHE_GHA_ENABLED: "true"
+      SCCACHE_CACHE_SIZE: "10G"
+    steps:
+      - name: Checkout Aegis
+        uses: actions/checkout@v4
+      - name: Configurar Git
+        run: |
+          git config --global user.name "Aegis Builder"
+          git config --global user.email "aegis-builder@users.noreply.github.com"
+      - name: Liberar espaço
+        run: |
+          df -h /
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL
+          sudo apt-get clean
+          df -h /
+      - name: Instalar dependências básicas
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential ca-certificates clang curl file git lld lsb-release pkg-config python3 python3-venv rsync unzip xz-utils
+      - name: Configurar sccache
+        uses: mozilla-actions/sccache-action@v0.0.9
+      - name: Verificar sccache
+        run: |
+          command -v sccache
+          sccache --version
+          sccache --show-stats || true
+      - name: Restaurar cache depot_tools
+        id: depot-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/depot_tools
+          key: depot-tools-v1
+      - name: Instalar depot_tools
+        if: steps.depot-cache.outputs.cache-hit != 'true'
+        run: git clone --depth=1 https://chromium.googlesource.com/chromium/tools/depot_tools.git "$HOME/depot_tools"
+      - name: Preparar depot_tools
+        run: |
+          echo "$HOME/depot_tools" >> "$GITHUB_PATH"
+          export PATH="$HOME/depot_tools:$PATH"
+          gclient metrics --disable || true
+      - name: Definir Chromium
+        id: chromium
+        run: |
+          VERSION="151.0.7922.173"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+      - name: Fetch Chromium
+        run: |
+          export PATH="$HOME/depot_tools:$PATH"
+          mkdir -p "$HOME/chromium" && cd "$HOME/chromium"
+          fetch --nohooks --no-history chromium
+          df -h /
+      - name: Fixar Chromium
+        run: |
+          export PATH="$HOME/depot_tools:$PATH"
+          cd "$HOME/chromium/src"
+          VERSION="${{ steps.chromium.outputs.version }}"
+          git fetch --depth=1 origin tag "$VERSION" || git fetch --depth=1 origin "$VERSION"
+          git checkout --detach "$VERSION"
+      - name: Sincronizar dependências
+        run: |
+          export PATH="$HOME/depot_tools:$PATH"
+          cd "$HOME/chromium"
+          gclient sync --no-history --nohooks --with_branch_heads
+          df -h /
+      - name: Instalar dependências Chromium
+        run: cd "$HOME/chromium/src" && sudo ./build/install-build-deps.sh --no-prompt
+      - name: Executar hooks
+        run: |
+          export PATH="$HOME/depot_tools:$PATH"
+          cd "$HOME/chromium" && gclient runhooks
+      - name: Testar patches contra Chromium
+        run: |
+          set -euo pipefail
+          cd "$HOME/chromium/src"
+          while IFS= read -r patch; do
+            patch="${patch%$'\r'}"; [ -z "$patch" ] && continue; case "$patch" in \#*) continue ;; esac
+            git apply --check "$GITHUB_WORKSPACE/patches/$patch"
+          done < "$GITHUB_WORKSPACE/patches/series"
+      - name: Aplicar patches Aegis
+        run: |
+          set -euo pipefail
+          cd "$HOME/chromium/src"
+          while IFS= read -r patch; do
+            patch="${patch%$'\r'}"; [ -z "$patch" ] && continue; case "$patch" in \#*) continue ;; esac
+            git am --3way "$GITHUB_WORKSPACE/patches/$patch"
+          done < "$GITHUB_WORKSPACE/patches/series"
+      - name: Gerar build GN
+        run: |
+          export PATH="$HOME/depot_tools:$PATH"
+          cd "$HOME/chromium/src"
+          mkdir -p out/Aegis
+          cp "$GITHUB_WORKSPACE/build/args.gn" out/Aegis/args.gn
+          cat out/Aegis/args.gn
+          gn gen out/Aegis
+          df -h /
+      - name: Compilar Aegis · finish from cache
         run: |
           export PATH="$HOME/depot_tools:$PATH"
           cd "$HOME/chromium/src"
@@ -154,6 +313,8 @@ jobs:
           [ "$JOBS" -gt 4 ] && JOBS=4
           echo "Compilando com $JOBS jobs paralelos + sccache"
           export NINJA_STATUS="[%f/%t] %es "
+          echo "Passo 2: retomando via sccache persistente"
+          sccache --show-stats || true
           autoninja -C out/Aegis -j"$JOBS" chrome
           sccache --show-stats || true
           df -h /
