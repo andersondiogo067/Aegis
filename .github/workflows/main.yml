@@ -29,6 +29,8 @@ jobs:
           grep -Eq '^is_debug[[:space:]]*=[[:space:]]*false$' build/args.gn
           grep -Eq '^use_sandbox[[:space:]]*=[[:space:]]*true$' build/args.gn
           grep -Eq '^chrome_pgo_phase[[:space:]]*=[[:space:]]*0$' build/args.gn
+          grep -Eq '^symbol_level[[:space:]]*=[[:space:]]*0$' build/args.gn
+          grep -Eq '^cc_wrapper[[:space:]]*=[[:space:]]*"sccache"$' build/args.gn
           if grep -Eq '^use_sandbox[[:space:]]*=[[:space:]]*false$|^is_debug[[:space:]]*=[[:space:]]*true$' build/args.gn; then exit 1; fi
       - name: Validar lista e formato dos patches
         shell: bash
@@ -49,6 +51,8 @@ jobs:
     needs: precheck
     runs-on: ubuntu-latest
     timeout-minutes: 360
+    env:
+      SCCACHE_GHA_ENABLED: "true"
     steps:
       - name: Checkout Aegis
         uses: actions/checkout@v4
@@ -66,6 +70,13 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential ca-certificates clang curl file git lld lsb-release pkg-config python3 python3-venv rsync unzip xz-utils
+      - name: Configurar sccache
+        uses: mozilla-actions/sccache-action@v0.0.9
+      - name: Verificar sccache
+        run: |
+          command -v sccache
+          sccache --version
+          sccache --show-stats || true
       - name: Restaurar cache depot_tools
         id: depot-cache
         uses: actions/cache@v4
@@ -141,9 +152,10 @@ jobs:
           cd "$HOME/chromium/src"
           JOBS="$(nproc)"
           [ "$JOBS" -gt 4 ] && JOBS=4
-          echo "Compilando com $JOBS jobs paralelos"
+          echo "Compilando com $JOBS jobs paralelos + sccache"
           export NINJA_STATUS="[%f/%t] %es "
           autoninja -C out/Aegis -j"$JOBS" chrome
+          sccache --show-stats || true
           df -h /
       - name: Verificar build
         run: |
