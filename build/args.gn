@@ -10,3 +10,4 @@ use_sandbox = true
 is_official_build = true
 chrome_pgo_phase = 0
 cc_wrapper = "sccache"
+use_siso = false

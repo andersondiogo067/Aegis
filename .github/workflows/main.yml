@@ -31,6 +31,7 @@ jobs:
           grep -Eq '^chrome_pgo_phase[[:space:]]*=[[:space:]]*0$' build/args.gn
           grep -Eq '^symbol_level[[:space:]]*=[[:space:]]*0$' build/args.gn
           grep -Eq '^cc_wrapper[[:space:]]*=[[:space:]]*"sccache"$' build/args.gn
+          grep -Eq '^use_siso[[:space:]]*=[[:space:]]*false$' build/args.gn
           if grep -Eq '^use_sandbox[[:space:]]*=[[:space:]]*false$|^is_debug[[:space:]]*=[[:space:]]*true$' build/args.gn; then exit 1; fi
       - name: Validar lista e formato dos patches
         shell: bash
@@ -158,12 +159,18 @@ jobs:
           cd "$HOME/chromium/src"
           JOBS="$(nproc)"
           [ "$JOBS" -gt 4 ] && JOBS=4
-          echo "Passo 1: até 285 min com $JOBS jobs + sccache"
+          echo "Passo 1: até 285 min com $JOBS jobs + Ninja + sccache"
           export NINJA_STATUS="[%f/%t] %es "
+          sccache --zero-stats || true
+          ( while sleep 600; do echo "=== SCCACHE 10 MIN ==="; sccache --show-stats || true; done ) &
+          STATS_PID=$!
           set +e
           timeout --signal=INT --kill-after=30s 285m autoninja -C out/Aegis -j"$JOBS" chrome
           code=$?
           set -e
+          kill "$STATS_PID" 2>/dev/null || true
+          wait "$STATS_PID" 2>/dev/null || true
+          echo "=== SCCACHE FINAL PASSO 1 ==="
           sccache --show-stats || true
           if [ "$code" -eq 0 ] && [ -x out/Aegis/chrome ]; then
             echo "complete=true" >> "$GITHUB_OUTPUT"
@@ -311,13 +318,22 @@ jobs:
           cd "$HOME/chromium/src"
           JOBS="$(nproc)"
           [ "$JOBS" -gt 4 ] && JOBS=4
-          echo "Compilando com $JOBS jobs paralelos + sccache"
+          echo "Compilando com $JOBS jobs paralelos + Ninja + sccache"
           export NINJA_STATUS="[%f/%t] %es "
-          echo "Passo 2: retomando via sccache persistente"
-          sccache --show-stats || true
+          echo "Passo 2: recompilando apenas misses; hits vêm do cache persistente"
+          sccache --zero-stats || true
+          ( while sleep 600; do echo "=== SCCACHE 10 MIN ==="; sccache --show-stats || true; done ) &
+          STATS_PID=$!
+          set +e
           autoninja -C out/Aegis -j"$JOBS" chrome
+          code=$?
+          set -e
+          kill "$STATS_PID" 2>/dev/null || true
+          wait "$STATS_PID" 2>/dev/null || true
+          echo "=== SCCACHE FINAL PASSO 2 ==="
           sccache --show-stats || true
           df -h /
+          exit "$code"
       - name: Verificar build
         run: |
           cd "$HOME/chromium/src/out/Aegis"
